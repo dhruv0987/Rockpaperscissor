@@ -1,0 +1,7 @@
+{
+  "name": "Robo-Hand Battle Arena",
+  "description": "A computer vision powered Rock-Paper-Scissors game where you battle an AI using real hand gestures! Detects your skeletal hand movements in real-time.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
