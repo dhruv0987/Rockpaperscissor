@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import HandVisualizer from './components/HandVisualizer';
 import { Move, GameState } from './types';
-import { Hand, Sword, Scroll, Info, RefreshCw, Zap } from 'lucide-react';
+import { Info, RefreshCw, Zap, Volume2, VolumeX, Shield, Play } from 'lucide-react';
+import { soundManager } from './utils/sound';
 
 // Helpers
 const getRandomMove = (): Move => {
@@ -22,10 +23,10 @@ const determineWinner = (p1: Move, p2: Move): 'player' | 'ai' | 'draw' => {
 };
 
 const MoveIcon = ({ move, size = 24, className = "" }: { move: Move, size?: number, className?: string }) => {
-  if (move === Move.Rock) return <div className={`flex flex-col items-center ${className}`}><span className="text-4xl mb-2">🪨</span><span className="text-xs uppercase font-bold tracking-wider">Rock</span></div>;
-  if (move === Move.Paper) return <div className={`flex flex-col items-center ${className}`}><span className="text-4xl mb-2">📄</span><span className="text-xs uppercase font-bold tracking-wider">Paper</span></div>;
-  if (move === Move.Scissors) return <div className={`flex flex-col items-center ${className}`}><span className="text-4xl mb-2">✂️</span><span className="text-xs uppercase font-bold tracking-wider">Scissors</span></div>;
-  return <div className={`flex flex-col items-center ${className}`}><span className="text-4xl mb-2">❓</span><span className="text-xs uppercase font-bold tracking-wider">Waiting</span></div>;
+  if (move === Move.Rock) return <div className={`flex flex-col items-center gap-1 ${className}`}><span className="text-5xl drop-shadow-lg">🪨</span><span className="text-[10px] uppercase font-bold tracking-widest opacity-70">Rock</span></div>;
+  if (move === Move.Paper) return <div className={`flex flex-col items-center gap-1 ${className}`}><span className="text-5xl drop-shadow-lg">📄</span><span className="text-[10px] uppercase font-bold tracking-widest opacity-70">Paper</span></div>;
+  if (move === Move.Scissors) return <div className={`flex flex-col items-center gap-1 ${className}`}><span className="text-5xl drop-shadow-lg">✂️</span><span className="text-[10px] uppercase font-bold tracking-widest opacity-70">Scissors</span></div>;
+  return <div className={`flex flex-col items-center gap-1 ${className}`}><span className="text-5xl opacity-20">❓</span><span className="text-[10px] uppercase font-bold tracking-widest opacity-30">Waiting</span></div>;
 };
 
 const App: React.FC = () => {
@@ -36,6 +37,8 @@ const App: React.FC = () => {
   const [score, setScore] = useState({ player: 0, ai: 0 });
   const [countdown, setCountdown] = useState<number>(3);
   const [winner, setWinner] = useState<'player' | 'ai' | 'draw' | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
 
   // Sound effects refs (simulated visually mostly, but structure is here)
   const timerRef = useRef<number | null>(null);
@@ -44,33 +47,67 @@ const App: React.FC = () => {
     setGameState(GameState.Idle);
   };
 
+  const addLog = (msg: string) => {
+      setLogs(prev => [msg, ...prev].slice(0, 5));
+  };
+
+  const toggleMute = () => {
+    const newMuteState = !isMuted;
+    setIsMuted(newMuteState);
+    soundManager.muted = newMuteState;
+    if (!newMuteState) {
+        soundManager.playClick();
+        soundManager.startBGM();
+    }
+  };
+
   const startGame = () => {
+    // User interaction required to start AudioContext properly in some browsers
+    soundManager.startBGM(); 
+    soundManager.playClick();
+    
     setGameState(GameState.Countdown);
     setCountdown(3);
     setWinner(null);
     setLockedPlayerMove(Move.None);
     setAiMove(Move.None);
+    addLog("Battle Initiated...");
   };
 
   // Countdown Logic
   useEffect(() => {
     if (gameState === GameState.Countdown) {
       if (countdown > 0) {
+        soundManager.playCountdown(countdown);
         timerRef.current = window.setTimeout(() => setCountdown(c => c - 1), 1000);
       } else {
         // TIME IS UP! CAPTURE THE MOMENT
+        soundManager.playCountdown(0); // "GO!" sound
         const finalAiMove = getRandomMove();
         const capturedMove = currentDetectedMove === Move.None ? getRandomMove() : currentDetectedMove; // Fallback to random if hand not seen
         
         setAiMove(finalAiMove);
         setLockedPlayerMove(capturedMove);
-        setWinner(determineWinner(capturedMove, finalAiMove));
+        
+        const result = determineWinner(capturedMove, finalAiMove);
+        setWinner(result);
         setGameState(GameState.Result);
         
-        // Update Score
-        const result = determineWinner(capturedMove, finalAiMove);
-        if (result === 'player') setScore(s => ({ ...s, player: s.player + 1 }));
-        if (result === 'ai') setScore(s => ({ ...s, ai: s.ai + 1 }));
+        // Update Score & Play Sound
+        if (result === 'player') {
+            setScore(s => ({ ...s, player: s.player + 1 }));
+            addLog("Result: YOU WIN");
+            setTimeout(() => soundManager.playWin(), 200);
+        }
+        if (result === 'ai') {
+            setScore(s => ({ ...s, ai: s.ai + 1 }));
+            addLog("Result: AI WINS");
+            setTimeout(() => soundManager.playLose(), 200);
+        }
+        if (result === 'draw') {
+            addLog("Result: DRAW");
+            setTimeout(() => soundManager.playDraw(), 200);
+        }
       }
     }
     return () => {
@@ -78,168 +115,189 @@ const App: React.FC = () => {
     };
   }, [gameState, countdown, currentDetectedMove]);
 
+  // Hover effects for buttons
+  const playHover = () => soundManager.playHover();
+
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col">
+    <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-cyan-500/30 overflow-hidden relative">
+      
+      {/* Ambient Background */}
+      <div className="fixed inset-0 pointer-events-none">
+          <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-900/20 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-900/20 rounded-full blur-[120px]" />
+      </div>
+
       {/* Header */}
-      <header className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shadow-lg z-10">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg">
-            <Zap className="text-white" size={24} />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold pixel-font text-blue-400">ROBO-HAND</h1>
-            <p className="text-xs text-slate-400">Battle Arena v1.0</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4 bg-slate-900 px-4 py-2 rounded-full border border-slate-700">
-          <div className="flex flex-col items-center px-4 border-r border-slate-700">
-            <span className="text-xs text-slate-400 font-bold">YOU</span>
-            <span className="text-2xl font-bold text-blue-400 pixel-font">{score.player}</span>
-          </div>
-          <div className="text-slate-600 font-bold text-xl">VS</div>
-          <div className="flex flex-col items-center px-4 border-l border-slate-700">
-            <span className="text-xs text-slate-400 font-bold">AI</span>
-            <span className="text-2xl font-bold text-red-400 pixel-font">{score.ai}</span>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col md:flex-row p-4 gap-4 max-w-6xl mx-auto w-full items-center justify-center">
+      <header className="fixed top-0 left-0 w-full z-50 p-6 flex justify-between items-start pointer-events-none">
         
-        {/* Left Side: Game Controls & Info */}
-        <div className="flex-1 w-full flex flex-col gap-4 max-w-md">
-          
-          <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 backdrop-blur-sm">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Info size={20} className="text-blue-400"/>
-              <span>Mission Briefing</span>
-            </h2>
-            <ul className="space-y-3 text-sm text-slate-300">
-              <li className="flex items-start gap-2">
-                <span className="bg-slate-700 rounded p-1">1</span>
-                <span>Allow camera access to activate the Neural Link.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="bg-slate-700 rounded p-1">2</span>
-                <span>Press <strong>START BATTLE</strong> to begin countdown.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="bg-slate-700 rounded p-1">3</span>
-                <span>When timer hits <strong>0</strong>, show your move!</span>
-              </li>
-            </ul>
-            <div className="mt-4 p-3 bg-slate-900 rounded-lg text-xs text-slate-400 font-mono">
-              <p>System: Detecting skeletal landmarks...</p>
-              <p>Tech: MediaPipe Vision + React</p>
-              <p className="text-yellow-500 mt-1">Status: {gameState === GameState.Loading ? 'Initializing...' : 'Online'}</p>
-            </div>
+        {/* Branding */}
+        <div className="pointer-events-auto flex items-center gap-3 bg-black/40 backdrop-blur-md px-5 py-3 rounded-full border border-white/10 shadow-lg">
+          <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-2 rounded-lg shadow-inner">
+            <Zap className="text-white fill-current" size={18} />
           </div>
-
-          {/* Current Live Detection Indicator */}
-          <div className="bg-slate-800 p-4 rounded-xl border border-blue-500/20 shadow-inner flex items-center justify-between">
-            <span className="text-sm font-bold text-slate-400">LIVE SENSOR:</span>
-            <div className="flex items-center gap-2">
-              <span className={`w-3 h-3 rounded-full ${currentDetectedMove !== Move.None ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-              <span className="font-mono font-bold text-lg text-blue-300 uppercase">
-                {currentDetectedMove !== Move.None ? currentDetectedMove : "NO HAND"}
-              </span>
-            </div>
+          <div className="flex flex-col">
+            <h1 className="text-sm font-bold tracking-widest text-white uppercase">Robo-Hand</h1>
+            <span className="text-[10px] text-white/50 tracking-wider">BATTLE ARENA</span>
           </div>
-
         </div>
 
-        {/* Center: The Arena */}
-        <div className="flex-1 relative w-full max-w-lg aspect-[4/3]">
-          
-          <HandVisualizer 
-            onMoveDetected={setCurrentDetectedMove} 
-            gameState={gameState} 
-            onModelLoaded={handleModelLoaded} 
-          />
-
-          {/* Overlays */}
-          <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-            
-            {/* Countdown Overlay */}
-            {gameState === GameState.Countdown && (
-              <div className="animate-bounce text-9xl font-bold pixel-font text-yellow-400 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]">
-                {countdown > 0 ? countdown : "SHOOT!"}
-              </div>
-            )}
-
-            {/* Results Overlay */}
-            {gameState === GameState.Result && winner && (
-              <div className="bg-black/80 backdrop-blur-md p-8 rounded-2xl border-2 border-white/20 text-center animate-in zoom-in duration-300 shadow-2xl">
-                <h2 className="text-4xl font-bold pixel-font mb-6">
-                  {winner === 'player' && <span className="text-green-400">YOU WIN!</span>}
-                  {winner === 'ai' && <span className="text-red-500">AI WINS!</span>}
-                  {winner === 'draw' && <span className="text-yellow-400">DRAW!</span>}
-                </h2>
-                
-                <div className="flex justify-center items-center gap-8 mb-6">
-                  <div className="bg-blue-900/50 p-4 rounded-xl border border-blue-500/50">
-                    <p className="text-xs text-blue-300 mb-2 font-bold">YOU</p>
-                    <MoveIcon move={lockedPlayerMove} size={48} className="text-blue-200" />
-                  </div>
-                  <div className="text-2xl font-bold text-slate-500">VS</div>
-                  <div className="bg-red-900/50 p-4 rounded-xl border border-red-500/50">
-                    <p className="text-xs text-red-300 mb-2 font-bold">AI</p>
-                    <MoveIcon move={aiMove} size={48} className="text-red-200" />
-                  </div>
-                </div>
-
-                <button 
-                  onClick={startGame}
-                  className="pointer-events-auto bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-8 rounded-lg transition-transform hover:scale-105 active:scale-95 flex items-center gap-2 mx-auto"
-                >
-                  <RefreshCw size={20} />
-                  PLAY AGAIN
-                </button>
-              </div>
-            )}
-
-            {/* Start Button Overlay (Idle State) */}
-            {gameState === GameState.Idle && (
-              <button 
-                onClick={startGame}
-                className="pointer-events-auto bg-blue-600 hover:bg-blue-500 text-white font-bold text-xl py-4 px-12 rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.5)] border-4 border-blue-400 transition-all hover:scale-105 active:scale-95 animate-pulse pixel-font"
-              >
-                START BATTLE
-              </button>
-            )}
-
-             {/* Loading Overlay */}
-             {gameState === GameState.Loading && (
-              <div className="bg-black/60 p-6 rounded-lg backdrop-blur">
-                 <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                 <p className="font-bold text-blue-300">Loading AI Vision Model...</p>
-              </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Right Side: Log or Visual Decor */}
-        <div className="hidden lg:flex flex-col gap-4 w-64 h-96">
-           <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 h-full overflow-hidden flex flex-col">
-              <h3 className="text-xs font-bold text-slate-500 uppercase mb-2 tracking-widest border-b border-slate-800 pb-2">Battle Log</h3>
-              <div className="flex-1 overflow-y-auto space-y-2 text-xs font-mono">
-                {gameState === GameState.Idle && <p className="text-slate-500">System Ready. Awaiting user input.</p>}
-                {gameState === GameState.Countdown && <p className="text-yellow-500">Preparing neural sync...</p>}
-                {winner && (
-                  <div className="border-l-2 border-slate-600 pl-2 py-1 animate-in slide-in-from-right">
-                    <span className={winner === 'player' ? 'text-green-400' : winner === 'ai' ? 'text-red-400' : 'text-yellow-400'}>
-                      Result: {winner.toUpperCase()}
-                    </span>
-                    <br/>
-                    <span className="text-slate-500">P: {lockedPlayerMove} / AI: {aiMove}</span>
-                  </div>
-                )}
-              </div>
+        {/* Floating Scoreboard */}
+        <div className="absolute left-1/2 top-6 -translate-x-1/2 pointer-events-auto flex items-center gap-6 bg-black/60 backdrop-blur-xl px-10 py-3 rounded-2xl border border-white/10 shadow-2xl">
+           <div className="text-center">
+             <span className="block text-[10px] font-bold text-cyan-400 tracking-wider mb-1">PLAYER</span>
+             <span className="text-3xl font-black pixel-font text-white">{score.player}</span>
+           </div>
+           <div className="text-white/20 font-light text-2xl px-2">/</div>
+           <div className="text-center">
+             <span className="block text-[10px] font-bold text-red-400 tracking-wider mb-1">AI CPU</span>
+             <span className="text-3xl font-black pixel-font text-white">{score.ai}</span>
            </div>
         </div>
 
+        {/* Settings */}
+        <div className="pointer-events-auto flex items-center gap-3">
+             <button 
+                onClick={toggleMute} 
+                className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-full border border-white/10 text-white/70 hover:text-white hover:bg-white/10 transition-all"
+                title={isMuted ? "Unmute" : "Mute"}
+            >
+                {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
+        </div>
+      </header>
+
+      {/* Main Game Area */}
+      <main className="relative z-10 flex flex-col items-center justify-center min-h-screen pt-24 pb-8 px-4">
+        
+        <div className="flex flex-col lg:flex-row gap-8 w-full max-w-6xl items-center lg:items-start justify-center">
+
+            {/* Left: Status & Sensor */}
+            <div className="order-2 lg:order-1 w-full lg:w-64 flex flex-col gap-4">
+                {/* Live Sensor Pill */}
+                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col gap-2 shadow-lg">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white/50 tracking-wider uppercase flex items-center gap-2">
+                             <Shield size={12} /> Sensor Status
+                        </span>
+                        <div className={`w-2 h-2 rounded-full ${currentDetectedMove !== Move.None ? 'bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.5)]' : 'bg-red-500/50'}`} />
+                    </div>
+                    <div className="h-10 flex items-center justify-center bg-black/30 rounded-lg border border-white/5 relative overflow-hidden">
+                         {currentDetectedMove !== Move.None ? (
+                             <span className="text-cyan-400 font-bold tracking-widest uppercase animate-pulse">{currentDetectedMove}</span>
+                         ) : (
+                             <span className="text-white/20 text-xs italic">Searching...</span>
+                         )}
+                         {/* Scanning Line */}
+                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -skew-x-12 translate-x-[-100%] animate-[shimmer_2s_infinite]" />
+                    </div>
+                </div>
+
+                {/* Info Card */}
+                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-5 flex flex-col gap-3 shadow-lg">
+                    <h3 className="text-xs font-bold text-white/50 tracking-wider uppercase flex items-center gap-2">
+                        <Info size={12} /> Instructions
+                    </h3>
+                    <ul className="text-sm text-white/70 space-y-2 leading-relaxed">
+                        <li className="flex gap-2"><span className="text-cyan-400 font-bold">1.</span> Face camera</li>
+                        <li className="flex gap-2"><span className="text-cyan-400 font-bold">2.</span> Hit Start</li>
+                        <li className="flex gap-2"><span className="text-cyan-400 font-bold">3.</span> Show hand on 0</li>
+                    </ul>
+                </div>
+            </div>
+
+            {/* Center: Visualizer */}
+            <div className="order-1 lg:order-2 flex-1 w-full max-w-[640px] aspect-[4/3] relative group">
+                {/* Glow behind container */}
+                <div className="absolute -inset-1 bg-gradient-to-br from-cyan-500/20 to-purple-500/20 rounded-[2rem] blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+                
+                <div className="relative w-full h-full bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl ring-1 ring-white/5">
+                    <HandVisualizer 
+                        onMoveDetected={setCurrentDetectedMove} 
+                        gameState={gameState} 
+                        onModelLoaded={handleModelLoaded} 
+                    />
+
+                    {/* OVERLAYS INSIDE VIDEO */}
+                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+                         
+                         {/* Countdown */}
+                        {gameState === GameState.Countdown && (
+                        <div className="animate-[bounce_0.5s_infinite] text-[10rem] font-black pixel-font text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
+                            {countdown > 0 ? countdown : "GO!"}
+                        </div>
+                        )}
+
+                        {/* Result Modal */}
+                        {gameState === GameState.Result && winner && (
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
+                            <div className="bg-neutral-900/90 border border-white/10 p-8 rounded-3xl shadow-2xl text-center transform scale-100 max-w-sm w-full mx-4">
+                                <h2 className="text-4xl font-black pixel-font mb-8 tracking-tighter">
+                                {winner === 'player' && <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">YOU WIN</span>}
+                                {winner === 'ai' && <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-600">AI WINS</span>}
+                                {winner === 'draw' && <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600">DRAW</span>}
+                                </h2>
+                                
+                                <div className="flex justify-between items-end mb-8 px-4">
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-16 h-16 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/30 mb-2">
+                                            <MoveIcon move={lockedPlayerMove} size={32} />
+                                        </div>
+                                        <span className="text-[10px] font-bold text-blue-300">YOU</span>
+                                    </div>
+                                    <div className="text-white/20 text-xl font-light pb-6">vs</div>
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-16 h-16 bg-red-500/10 rounded-xl flex items-center justify-center border border-red-500/30 mb-2">
+                                            <MoveIcon move={aiMove} size={32} />
+                                        </div>
+                                        <span className="text-[10px] font-bold text-red-300">AI</span>
+                                    </div>
+                                </div>
+
+                                <button 
+                                onClick={startGame}
+                                onMouseEnter={playHover}
+                                className="pointer-events-auto w-full bg-white text-black font-bold py-4 px-6 rounded-xl hover:bg-cyan-400 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg"
+                                >
+                                <RefreshCw size={20} />
+                                <span>PLAY AGAIN</span>
+                                </button>
+                            </div>
+                        </div>
+                        )}
+
+                        {/* IDLE STATE BUTTON */}
+                        {gameState === GameState.Idle && (
+                        <button 
+                            onClick={startGame}
+                            onMouseEnter={playHover}
+                            className="pointer-events-auto group relative overflow-hidden bg-cyan-500 text-black font-black text-xl py-5 px-10 rounded-2xl shadow-[0_0_40px_rgba(6,182,212,0.4)] transition-all hover:scale-105 active:scale-95"
+                        >
+                            <span className="relative z-10 flex items-center gap-3">
+                                <Play fill="currentColor" size={24}/> START MATCH
+                            </span>
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                        </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Right: Log (Clean List) */}
+            <div className="order-3 w-full lg:w-64 flex flex-col gap-4">
+                 <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-5 h-[300px] flex flex-col shadow-lg">
+                    <h3 className="text-xs font-bold text-white/50 tracking-wider uppercase mb-3 pb-3 border-b border-white/5">Battle Logs</h3>
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
+                        {logs.length === 0 && <span className="text-white/20 text-xs text-center block mt-10">Waiting for battle data...</span>}
+                        {logs.map((log, i) => (
+                            <div key={i} className="text-xs font-mono text-white/80 animate-in slide-in-from-left fade-in duration-300">
+                                <span className="text-cyan-500 mr-2">➜</span>{log}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+        </div>
       </main>
     </div>
   );

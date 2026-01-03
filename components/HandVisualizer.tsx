@@ -160,17 +160,17 @@ const HandVisualizer: React.FC<HandVisualizerProps> = ({ onMoveDetected, gameSta
         const drawingUtils = new DrawingUtils(ctx);
         
         drawingUtils.drawConnectors(landmarks, HandLandmarker.HAND_CONNECTIONS, {
-          color: "#3b82f6", // Blue-500 line
-          lineWidth: 4
+          color: "rgba(34, 211, 238, 0.8)", // Cyan-400 with opacity
+          lineWidth: 2 // Thinner lines
         });
 
         // Draw Landmarks (Dots)
         drawingUtils.drawLandmarks(landmarks, {
-          color: "#60a5fa", // Blue-400 fill
-          lineWidth: 2,
+          color: "rgba(255, 255, 255, 0.8)", // White dots
+          lineWidth: 1,
           radius: (data) => {
-            // Make fingertips larger
-            return DrawingUtils.lerp(data.from!.z, -0.15, .1, 6, 2);
+            // Smaller radius for cleaner look
+            return DrawingUtils.lerp(data.from!.z, -0.15, .1, 4, 1); 
           }
         });
         
@@ -188,27 +188,27 @@ const HandVisualizer: React.FC<HandVisualizerProps> = ({ onMoveDetected, gameSta
   }, [onMoveDetected]);
 
   return (
-    <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-blue-500/30 bg-black">
+    <div className="relative w-full h-full">
       {/* The Webcam Feed */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
-        className="block w-full h-full object-cover transform -scale-x-100" // Mirror effect
-        style={{ minHeight: '400px' }}
+        className="block w-full h-full object-cover transform -scale-x-100 rounded-3xl" // Mirror effect
       />
       
       {/* The Skeleton Overlay */}
       <canvas
         ref={canvasRef}
-        className="absolute top-0 left-0 w-full h-full pointer-events-none transform -scale-x-100" // Mirror effect matches video
+        className="absolute top-0 left-0 w-full h-full pointer-events-none transform -scale-x-100 rounded-3xl" // Mirror effect matches video
       />
 
       {/* Status Overlay */}
       {!webcamRunning && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white">
-          <p>Initializing Neural Hand Vision...</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white rounded-3xl backdrop-blur-sm z-20">
+          <div className="w-12 h-12 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-cyan-400 font-mono text-sm tracking-widest uppercase animate-pulse">Initializing Vision...</p>
         </div>
       )}
     </div>
