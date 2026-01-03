@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import HandVisualizer from './components/HandVisualizer';
 import { Move, GameState } from './types';
-import { Info, RefreshCw, Zap, Volume2, VolumeX, Shield, Play } from 'lucide-react';
+import { Info, RefreshCw, Zap, Volume2, VolumeX, Shield, Play, ScanEye } from 'lucide-react';
 import { soundManager } from './utils/sound';
+import { TourGuide } from './components/TourGuide';
 
 // Helpers
 const getRandomMove = (): Move => {
@@ -39,6 +40,7 @@ const App: React.FC = () => {
   const [winner, setWinner] = useState<'player' | 'ai' | 'draw' | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [showTour, setShowTour] = useState(false);
 
   // Sound effects refs (simulated visually mostly, but structure is here)
   const timerRef = useRef<number | null>(null);
@@ -121,6 +123,9 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-cyan-500/30 overflow-hidden relative">
       
+      {/* Tour Guide Overlay */}
+      {showTour && <TourGuide onClose={() => setShowTour(false)} />}
+
       {/* Ambient Background */}
       <div className="fixed inset-0 pointer-events-none">
           <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-900/20 rounded-full blur-[120px]" />
@@ -202,6 +207,13 @@ const App: React.FC = () => {
                         <li className="flex gap-2"><span className="text-cyan-400 font-bold">2.</span> Hit Start</li>
                         <li className="flex gap-2"><span className="text-cyan-400 font-bold">3.</span> Show hand on 0</li>
                     </ul>
+                    
+                    <button 
+                      onClick={() => setShowTour(true)}
+                      className="mt-2 w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg py-2 text-xs font-bold text-cyan-300 transition-colors"
+                    >
+                      <ScanEye size={14} /> How it Works
+                    </button>
                 </div>
             </div>
 
