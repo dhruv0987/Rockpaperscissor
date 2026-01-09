@@ -120,11 +120,30 @@ const App: React.FC = () => {
       } else {
         // TIME IS UP!
         soundManager.playCountdown(0);
-        const finalAiMove = getRandomMove();
+        
+        // 1. Capture Player Move (Use random if hand not seen)
         const capturedMove = currentDetectedMove === Move.None ? getRandomMove() : currentDetectedMove;
+        setLockedPlayerMove(capturedMove);
+
+        // 2. AI Logic (The "Super-Computer" Mode)
+        // Probability: 4% chance user wins (1/25), 96% AI wins.
+        const chance = Math.random();
+        let finalAiMove: Move;
+
+        if (chance < 0.04) {
+             // 4% Chance: AI glitches and picks a losing move
+             if (capturedMove === Move.Rock) finalAiMove = Move.Scissors;
+             else if (capturedMove === Move.Paper) finalAiMove = Move.Rock;
+             else finalAiMove = Move.Paper; 
+             addLog("AI System Error...");
+        } else {
+             // 96% Chance: AI computes the perfect counter
+             if (capturedMove === Move.Rock) finalAiMove = Move.Paper;
+             else if (capturedMove === Move.Paper) finalAiMove = Move.Scissors;
+             else finalAiMove = Move.Rock;
+        }
         
         setAiMove(finalAiMove);
-        setLockedPlayerMove(capturedMove);
         
         const result = determineWinner(capturedMove, finalAiMove);
         setWinner(result);

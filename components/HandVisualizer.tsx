@@ -12,6 +12,7 @@ const HandVisualizer: React.FC<HandVisualizerProps> = ({ onMoveDetected, gameSta
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [webcamRunning, setWebcamRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const handLandmarkerRef = useRef<HandLandmarker | null>(null);
   const requestRef = useRef<number | null>(null);
 
@@ -20,7 +21,7 @@ const HandVisualizer: React.FC<HandVisualizerProps> = ({ onMoveDetected, gameSta
     const initHandLandmarker = async () => {
       try {
         const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm"
         );
         
         handLandmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
@@ -34,8 +35,9 @@ const HandVisualizer: React.FC<HandVisualizerProps> = ({ onMoveDetected, gameSta
         
         onModelLoaded();
         setWebcamRunning(true);
-      } catch (error) {
-        console.error("Error initializing hand landmarker:", error);
+      } catch (err: any) {
+        console.error("Error initializing hand landmarker:", err);
+        setError(`AI Init Failed: ${err.message || 'Unknown Error'}`);
       }
     };
 
@@ -63,8 +65,9 @@ const HandVisualizer: React.FC<HandVisualizerProps> = ({ onMoveDetected, gameSta
           videoRef.current.srcObject = stream;
           videoRef.current.addEventListener("loadeddata", predictWebcam);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error accessing webcam:", err);
+        setError(`Camera Error: ${err.message || 'Permission Denied'}`);
       }
     };
 
@@ -206,9 +209,18 @@ const HandVisualizer: React.FC<HandVisualizerProps> = ({ onMoveDetected, gameSta
 
       {/* Status Overlay */}
       {!webcamRunning && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white rounded-3xl backdrop-blur-sm z-20">
-          <div className="w-12 h-12 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-cyan-400 font-mono text-sm tracking-widest uppercase animate-pulse">Initializing Vision...</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white rounded-3xl backdrop-blur-sm z-20 p-6 text-center">
+          {!error ? (
+            <>
+              <div className="w-12 h-12 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-cyan-400 font-mono text-sm tracking-widest uppercase animate-pulse">Initializing Vision...</p>
+            </>
+          ) : (
+            <div className="flex flex-col items-center">
+              <div className="text-red-500 font-bold mb-2">SYSTEM ERROR</div>
+              <p className="text-white/70 text-xs">{error}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
