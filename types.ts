@@ -7,6 +7,7 @@ export enum Move {
 
 export enum GameState {
   Loading = 'LOADING',
+  Registration = 'REGISTRATION',
   Idle = 'IDLE',
   Countdown = 'COUNTDOWN',
   Result = 'RESULT'
